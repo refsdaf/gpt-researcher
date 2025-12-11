@@ -444,11 +444,6 @@ async def analyze_resume(
 # ============================================================
 
 
-def mark_interview_done(state: InterviewResearchState) -> dict[str, Any]:
-    """标记面试经验搜索任务完成"""
-    return {"completed_tasks": ["interview_search"]}
-
-
 def mark_salary_done(state: InterviewResearchState) -> dict[str, Any]:
     """标记薪资搜索任务完成"""
     return {"completed_tasks": ["salary_search"]}
@@ -506,31 +501,6 @@ async def generate_report(
 # ============================================================
 # 路由函数
 # ============================================================
-
-
-def route_interview_branch(state: InterviewResearchState) -> str:
-    """路由：面试经验 -> 兜底 OR 完成"""
-    if state.get("company_interview_found", False):
-        return "mark_interview_done"
-    return "fallback_industry_interview"
-
-
-def route_salary_branch(state: InterviewResearchState) -> str:
-    """路由：薪资 -> 兜底 OR 完成"""
-    if state.get("company_salary_found", False):
-        return "mark_salary_done"
-    return "fallback_industry_salary"
-
-
-def route_after_interview_complete(state: InterviewResearchState) -> str:
-    """路由：面试经验任务完成 -> 简历分析"""
-    # 面试经验搜索完毕后，触发简历分析
-    if state.get("resume_text"):
-        return "analyze_resume"
-    # 如果没有简历，简历分析任务视为直接完成（或跳过）
-    # 但为了逻辑统一，我们可以让 analyze_resume 处理空简历的情况并返回 completed
-    # 这里我们选择直接去 analyze_resume，它会处理空值
-    return "analyze_resume"
 
 
 def check_global_completion(state: InterviewResearchState) -> str:
@@ -612,7 +582,6 @@ graph.add_node("fallback_industry_interview", fallback_industry_interview)
 graph.add_node("fallback_industry_salary", fallback_industry_salary)
 
 # 标记节点 (用于统一分支结束状态)
-graph.add_node("mark_interview_done", mark_interview_done)
 graph.add_node("mark_salary_done", mark_salary_done)
 
 # 第三阶段：分析节点
@@ -635,16 +604,6 @@ graph.set_entry_point("init")
 graph.add_conditional_edges("init", route_start)
 
 # 1. 面试链路
-# probe -> (found) -> mark_done -> analyze
-# probe -> (not found) -> fallback -> analyze
-graph.add_conditional_edges(
-    "probe_company_interview",
-    route_interview_branch,
-    {
-        "mark_interview_done": "mark_interview_done",
-        "fallback_industry_interview": "fallback_industry_interview"
-    }
-)
 
 # 行业兜底直接进入简历分析（因为它意味着面试经验搜索结束）
 # 但我们需要确保 "interview_search" 任务概念上的完成？
