@@ -10,7 +10,10 @@ from .nodes import (
     tailor_experience,
     tailor_skills,
     reorder_sections,
-    review_resume
+    review_resume,
+    revise_resume,
+    write_cover_letter,
+    should_revise
 )
 
 def create_resume_tailor_graph():
@@ -25,10 +28,12 @@ def create_resume_tailor_graph():
     workflow.add_node("tailor_experience", tailor_experience)
     workflow.add_node("tailor_skills", tailor_skills)
     workflow.add_node("reorder_sections", reorder_sections)
-    workflow.add_node("advise_formatting", advise_formatting) # 并行或串行
+    workflow.add_node("advise_formatting", advise_formatting)
     workflow.add_node("review_resume", review_resume)
+    workflow.add_node("revise_resume", revise_resume)
+    workflow.add_node("write_cover_letter", write_cover_letter)
 
-    # 添加边 (顺序工作流)
+    # 添加边 (顺序工作流 + 循环)
     workflow.set_entry_point("analyze_jd")
     workflow.add_edge("analyze_jd", "research_company")
     workflow.add_edge("research_company", "strategize")
@@ -39,6 +44,18 @@ def create_resume_tailor_graph():
     workflow.add_edge("tailor_skills", "reorder_sections")
     workflow.add_edge("reorder_sections", "advise_formatting")
     workflow.add_edge("advise_formatting", "review_resume")
-    workflow.add_edge("review_resume", END)
+
+    # 条件分支
+    workflow.add_conditional_edges(
+        "review_resume",
+        should_revise,
+        {
+            "revise": "revise_resume",
+            "finalize": "write_cover_letter"
+        }
+    )
+
+    workflow.add_edge("revise_resume", "review_resume") # 修正后再次审查
+    workflow.add_edge("write_cover_letter", END)
 
     return workflow.compile()

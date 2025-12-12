@@ -19,7 +19,11 @@ class ResumeTailorState(TypedDict):
     tailoring_strategy: str      # 代理生成的文本计划 (可选)
     tailored_resume_data: Dict[str, Any] # 最终的结构化简历
 
-    # 质量保证 (Phase 6)
+    # 质量保证 & 迭代 (Phase 6)
     quality_report: Dict[str, Any] # "6秒测试"和"So What"测试结果
+    revision_count: int            # 迭代次数 (防止死循环)
 
-    config: Dict[str, Any]       # 配置（删除无关内容、夸大等）
+    # 申请材料 (Phase 7)
+    cover_letter: str              # 定制的求职信
+
+    config: Dict[str, Any]       # 配置（删除无关内容、夸大、联邦模式等）

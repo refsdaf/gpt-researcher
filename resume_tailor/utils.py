@@ -59,7 +59,13 @@ class MockChatModel(RunnableSerializable):
                 "so_what_test": {"result": "Pass", "comment": "Bullets clearly address the pain point of legacy code."},
                 "missing_keywords": [],
                 "final_verdict": "Ready to Submit"
-            })
+            }),
+            "Senior Editor fixing a resume": json.dumps({
+                "summary": "Revised Summary with more keywords.",
+                "experience": [],
+                "skills": []
+            }),
+            "career coach writing a cover letter": "Dear Hiring Manager,\n\nI am writing to express my interest in the Senior Full Stack Engineer role..."
         }
 
     def invoke(self, input: Any, config: Optional[Any] = None) -> AIMessage:

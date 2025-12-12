@@ -100,6 +100,7 @@ TAILOR_EXPERIENCE_PROMPT = """You are a professional resume writer. Your task is
 - Target Pain Points: {pain_points}
 - Configuration - Remove Irrelevant: {remove_irrelevant}
 - Configuration - Exaggerate Mode: {exaggerate}
+- Configuration - Style Mode: {style_mode}
 
 **Instructions:**
 1. **Re-prioritize**: Move bullet points that match the JD's requirements to the top.
@@ -109,8 +110,11 @@ TAILOR_EXPERIENCE_PROMPT = """You are a professional resume writer. Your task is
 5. **Exaggeration Level**:
    - If `exaggerate` is False: Stick strictly to the facts.
    - If `exaggerate` is True: Use "Power Verbs" and aggressive framing.
+6. **Style Mode**:
+   - If `style_mode` is 'federal' or 'academic': You MUST repeat critical keywords in EVERY relevant bullet point to demonstrate depth. Use paragraph format + bullets if necessary.
+   - If `style_mode` is 'standard': Be concise. Do not repeat keywords unnecessarily.
 
-6. **Bolding**: Wrap key matching terms in bold markdown (e.g., **Python**).
+7. **Bolding**: Wrap key matching terms in bold markdown (e.g., **Python**).
 
 Return the tailored bullet points as a list of strings.
 """
@@ -151,4 +155,40 @@ Return a JSON object with keys:
 - "so_what_test": {{"result": "Pass/Fail", "comment": "..."}}
 - "missing_keywords": ["...", "..."]
 - "final_verdict": "Ready to Submit" or "Needs Revision"
+"""
+
+REVISION_PROMPT = """You are a Senior Editor fixing a resume based on a Hiring Manager's feedback.
+
+**Feedback Report:**
+{quality_report}
+
+**Current Content:**
+{resume_data}
+
+**Task:**
+- If "missing_keywords" are listed, inject them naturally into the Summary or Experience bullets.
+- If "So What?" test failed, rewrite the problematic bullets to include results/metrics.
+- If "6-Second Test" failed, sharpen the Headline or first sentence of the Summary.
+
+Return the FULL updated resume structure as JSON.
+"""
+
+COVER_LETTER_PROMPT = """You are a professional career coach writing a cover letter.
+
+**Inputs:**
+- Candidate Name: {name}
+- Target Role: {role}
+- Company: {company}
+- Company Culture/News: {culture_context}
+- "Hook" (Summary): {summary}
+- Key Achievements: {key_achievements}
+
+**Structure:**
+1. **The Hook**: Start with a strong opening that connects your background to the company's recent news or mission.
+2. **The Evidence**: Use the "Key Achievements" to prove you can solve their specific pain points.
+3. **The Closing**: Confident call to action.
+
+**Tone**: Match the company culture ({culture_context}).
+
+Output the full cover letter text.
 """

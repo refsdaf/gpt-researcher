@@ -50,7 +50,8 @@ def run_test():
         "job_description": MOCK_JD,
         "config": {
             "remove_irrelevant": True,
-            "exaggerate": True
+            "exaggerate": True,
+            "style_mode": "federal"
         }
     }
 
@@ -61,10 +62,12 @@ def run_test():
         print(json.dumps(result["tailored_resume_data"], indent=2))
 
         print("\nAdvanced Analysis:")
-        print(f"File Name: {result['file_name']}")
-        print(f"Formatting Advice: {result['formatting_advice']}")
-        print(f"Gap Analysis: {result['gap_analysis']}")
-        print(f"Quality Report: {result['quality_report']}")
+        print(f"File Name: {result.get('file_name')}")
+        print(f"Gap Analysis: {len(result.get('gap_analysis', []))} entries")
+        print(f"Quality Report: {result.get('quality_report')}")
+
+        print("\nCover Letter:")
+        print(result.get("cover_letter"))
 
     except Exception as e:
         print(f"Error running graph: {e}")

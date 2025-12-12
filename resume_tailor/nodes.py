@@ -11,7 +11,9 @@ from .prompts import (
     TAILOR_SUMMARY_PROMPT,
     TAILOR_EXPERIENCE_PROMPT,
     TAILOR_SKILLS_PROMPT,
-    QUALITY_REVIEW_PROMPT
+    QUALITY_REVIEW_PROMPT,
+    REVISION_PROMPT,
+    COVER_LETTER_PROMPT
 )
 from .utils import get_llm, get_search_tool
 
@@ -158,6 +160,7 @@ def tailor_experience(state: ResumeTailorState) -> dict:
     config = state.get("config", {})
     gaps_filled = state.get("gap_analysis", []) # 从上一步获取的填补条目
     keywords = f"{analysis.get('hard_skills', [])}, {analysis.get('soft_skills', [])}"
+    style_mode = config.get("style_mode", "standard") # 获取风格模式（联邦/标准）
 
     if "experience" in current_tailored:
         tailored_experience = []
@@ -178,7 +181,8 @@ def tailor_experience(state: ResumeTailorState) -> dict:
                     "keywords": keywords,
                     "pain_points": analysis.get("pain_points", ""),
                     "remove_irrelevant": config.get("remove_irrelevant", False),
-                    "exaggerate": config.get("exaggerate", False)
+                    "exaggerate": config.get("exaggerate", False),
+                    "style_mode": style_mode
                 })
 
                 job_copy = job.copy()
@@ -274,3 +278,59 @@ def review_resume(state: ResumeTailorState) -> dict:
     })
 
     return {"quality_report": report}
+
+def revise_resume(state: ResumeTailorState) -> dict:
+    """根据审查反馈修正简历 (Phase 6 Iteration)。"""
+    print("--- Revision Phase (Iteration) ---")
+    resume = state["tailored_resume_data"]
+    report = state["quality_report"]
+    count = state.get("revision_count", 0)
+
+    prompt = ChatPromptTemplate.from_template(REVISION_PROMPT)
+    chain = prompt | llm | JsonOutputParser()
+
+    updated_resume = chain.invoke({
+        "quality_report": json.dumps(report),
+        "resume_data": json.dumps(resume)
+    })
+
+    return {
+        "tailored_resume_data": updated_resume,
+        "revision_count": count + 1
+    }
+
+def write_cover_letter(state: ResumeTailorState) -> dict:
+    """生成求职信 (Phase 7)。"""
+    print("--- Writing Cover Letter ---")
+    resume = state["tailored_resume_data"]
+    analysis = state["analysis"]
+    culture_context = state.get("company_research", "")
+    key_achievements = state.get("key_achievements", [])
+
+    prompt = ChatPromptTemplate.from_template(COVER_LETTER_PROMPT)
+    chain = prompt | llm
+
+    letter = chain.invoke({
+        "name": resume.get("name", "Candidate"),
+        "role": state.get("target_title", "Professional"),
+        "company": "Target Company",
+        "culture_context": culture_context,
+        "summary": resume.get("summary", ""),
+        "key_achievements": "\n- ".join(key_achievements)
+    })
+
+    return {"cover_letter": letter.content}
+
+def should_revise(state: ResumeTailorState) -> str:
+    """条件边：决定是修正还是继续。"""
+    report = state.get("quality_report", {})
+    count = state.get("revision_count", 0)
+    max_revisions = 1 # 限制最多修正1次以防止死循环
+
+    # 如果需要修正且未达到最大尝试次数
+    if report.get("final_verdict") == "Needs Revision" and count < max_revisions:
+        print(f"Veridct: Needs Revision. Attempt {count + 1}")
+        return "revise"
+
+    print("Verdict: Ready or Max Revisions Reached.")
+    return "finalize"
