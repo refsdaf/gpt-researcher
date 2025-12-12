@@ -18,6 +18,15 @@ class MockChatModel(RunnableSerializable):
                 "culture": "Startup/Modern, fast-paced.",
                 "key_responsibilities": "Architect backend, Lead frontend, Mentor juniors."
             }),
+            "Strategic Resume Consultant": json.dumps({
+                "target_title": "Senior Full Stack Engineer",
+                "section_order": ["summary", "key_achievements", "experience", "skills"],
+                "key_achievements": [
+                    "Built scalable React app under deadline.",
+                    "Refactored Python backend reducing latency by 40%.",
+                    "Mentored 3 junior devs to promotion."
+                ]
+            }),
             "Rewrite the Professional Summary": "Senior Full Stack Engineer (Python/React) with 5 years experience. Expert in Python and React. Proven track record of architecting scalable systems and refactoring legacy code in fast-paced startup environments.",
             "tailor a specific job entry": json.dumps([
                 "**Orchestrated cross-functional collaboration** to build a react app, matching startup speed.",

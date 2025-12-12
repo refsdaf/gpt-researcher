@@ -5,6 +5,7 @@ from langchain_core.output_parsers import JsonOutputParser
 from .state import ResumeTailorState
 from .prompts import (
     ANALYZE_JD_PROMPT,
+    STRATEGIC_ASSESSMENT_PROMPT,
     TAILOR_SUMMARY_PROMPT,
     TAILOR_EXPERIENCE_PROMPT,
     TAILOR_SKILLS_PROMPT
@@ -14,7 +15,7 @@ from .utils import get_llm, get_search_tool
 llm = get_llm()
 
 def analyze_job_posting(state: ResumeTailorState) -> dict:
-    """分析职位描述以提取特定的目标信息。"""
+    """分析职位描述以提取特定的目标信息 (Phase 1)。"""
     print("--- Analysis Phase ---")
     jd = state["job_description"]
 
@@ -25,58 +26,87 @@ def analyze_job_posting(state: ResumeTailorState) -> dict:
     return {"analysis": analysis}
 
 def research_company(state: ResumeTailorState) -> dict:
-    """如果职位描述中包含公司名称，则搜索公司文化/价值观。"""
+    """搜索公司文化/价值观 (Phase 1)。"""
     print("--- Research Phase ---")
-    # 这是一个简化版本。真正的代理可能会首先提取公司名称。
-    # 如果没有显式传递名称，我们只需搜索“公司文化”+ JD 标题的前几个词，
-    # 或者依赖于前一步骤的提取结果（如果我们修改状态以保存公司名称）。
-
-    # 目前，我们假设 JD 可能包含公司名称，或者我们仅根据上下文进行广泛搜索。
-    # 但通常情况下，用户会提供公司名称，或者名称就在文本中。
-
     search = get_search_tool()
     query = f"Company culture and values for job description: {state['job_description'][:100]}..."
     results = search.run(query)
-
     return {"company_research": str(results)}
 
-def tailor_resume(state: ResumeTailorState) -> dict:
-    """主要的执行节点。遍历简历的各个部分。"""
-    print("--- Tailoring Phase ---")
+def strategize(state: ResumeTailorState) -> dict:
+    """战略评估：确定标题、章节顺序和关键成就 (Phase 2)。"""
+    print("--- Strategic Planning Phase ---")
     resume = state["resume_data"]
     analysis = state["analysis"]
-    culture_context = state.get("company_research", "")
-    config = state.get("config", {})
 
-    tailored_resume = resume.copy()
-
-    # 1. 定制摘要
-    if "summary" in resume:
-        summary_prompt = ChatPromptTemplate.from_template(TAILOR_SUMMARY_PROMPT)
-        summary_chain = summary_prompt | llm
-
-        # 为提示词准备上下文
-        keywords = f"{analysis.get('hard_skills', [])}, {analysis.get('soft_skills', [])}"
-
-        new_summary = summary_chain.invoke({
-            "current_summary": resume["summary"],
-            "target_title": analysis.get("key_responsibilities", "Target Role"), # 简化
-            "keywords": keywords,
-            "pain_points": analysis.get("pain_points", ""),
-            "culture": f"{analysis.get('culture', '')}. External Research: {culture_context}"
-        })
-        tailored_resume["summary"] = new_summary.content
-
-    # 2. 定制工作经历
+    # 提取一些简要的简历上下文用于规划
+    exp_overview = []
     if "experience" in resume:
+        for job in resume["experience"][:2]: # 只看最近的两份工作
+            exp_overview.append(f"{job.get('role')} at {job.get('company')}")
+
+    prompt = ChatPromptTemplate.from_template(STRATEGIC_ASSESSMENT_PROMPT)
+    chain = prompt | llm | JsonOutputParser()
+
+    strategy = chain.invoke({
+        "analysis": json.dumps(analysis),
+        "current_summary": resume.get("summary", ""),
+        "experience_overview": "; ".join(exp_overview)
+    })
+
+    return {
+        "target_title": strategy.get("target_title", "Professional"),
+        "section_order": strategy.get("section_order", ["summary", "experience", "skills", "education"]),
+        "key_achievements": strategy.get("key_achievements", [])
+    }
+
+def tailor_header_summary(state: ResumeTailorState) -> dict:
+    """定制摘要和头部信息 (Phase 3A & 2.1)。"""
+    print("--- Tailoring Summary ---")
+    resume = state["resume_data"]
+    analysis = state["analysis"]
+    target_title = state.get("target_title", "Professional")
+    culture_context = state.get("company_research", "")
+
+    if "summary" not in resume:
+        return {}
+
+    prompt = ChatPromptTemplate.from_template(TAILOR_SUMMARY_PROMPT)
+    chain = prompt | llm
+
+    keywords = f"{analysis.get('hard_skills', [])}, {analysis.get('soft_skills', [])}"
+
+    new_summary_resp = chain.invoke({
+        "current_summary": resume["summary"],
+        "target_title": target_title,
+        "keywords": keywords,
+        "pain_points": analysis.get("pain_points", ""),
+        "culture": f"{analysis.get('culture', '')}. External Research: {culture_context}"
+    })
+
+    # 我们将把更新后的摘要暂时存储在 tailored_resume_data 中
+    # 注意：这是一个累积更新过程，我们需要确保 tailored_resume_data 已初始化
+    current_tailored = state.get("tailored_resume_data") or resume.copy()
+    current_tailored["summary"] = new_summary_resp.content
+
+    return {"tailored_resume_data": current_tailored}
+
+def tailor_experience(state: ResumeTailorState) -> dict:
+    """定制工作经历 (Phase 3B)。"""
+    print("--- Tailoring Experience ---")
+    # 获取当前的 tailored 数据（包含更新后的摘要），如果为空则从原始数据开始
+    current_tailored = state.get("tailored_resume_data") or state["resume_data"].copy()
+    analysis = state["analysis"]
+    config = state.get("config", {})
+    keywords = f"{analysis.get('hard_skills', [])}, {analysis.get('soft_skills', [])}"
+
+    if "experience" in current_tailored:
         tailored_experience = []
         exp_prompt = ChatPromptTemplate.from_template(TAILOR_EXPERIENCE_PROMPT)
-        exp_chain = exp_prompt | llm | JsonOutputParser() # 期望返回字符串列表
+        exp_chain = exp_prompt | llm | JsonOutputParser()
 
-        for job in resume["experience"]:
-            # 期望 job 包含 'role', 'company', 'bullets' (列表)
+        for job in current_tailored["experience"]:
             try:
-                # 处理 bullets 可能是字符串或列表的情况
                 current_bullets = job.get("bullets", [])
                 if isinstance(current_bullets, str):
                     current_bullets = [current_bullets]
@@ -96,34 +126,72 @@ def tailor_resume(state: ResumeTailorState) -> dict:
                 tailored_experience.append(job_copy)
             except Exception as e:
                 print(f"Error tailoring job {job.get('role')}: {e}")
-                tailored_experience.append(job) # 回退到原始数据
+                tailored_experience.append(job)
 
-        tailored_resume["experience"] = tailored_experience
+        current_tailored["experience"] = tailored_experience
 
-    # 3. 定制技能
-    if "skills" in resume:
+    return {"tailored_resume_data": current_tailored}
+
+def tailor_skills(state: ResumeTailorState) -> dict:
+    """定制技能部分 (Phase 3C)。"""
+    print("--- Tailoring Skills ---")
+    current_tailored = state.get("tailored_resume_data") or state["resume_data"].copy()
+    analysis = state["analysis"]
+    keywords = f"{analysis.get('hard_skills', [])}, {analysis.get('soft_skills', [])}"
+
+    if "skills" in current_tailored:
         skills_prompt = ChatPromptTemplate.from_template(TAILOR_SKILLS_PROMPT)
         skills_chain = skills_prompt | llm
 
-        # 确定当前的技能格式（列表或字典）
-        current_skills = resume["skills"]
         new_skills_resp = skills_chain.invoke({
-            "current_skills": current_skills,
+            "current_skills": current_tailored["skills"],
             "keywords": keywords
         })
 
-        # 我们目前只获取文本输出，假设提示词能很好地指导输出。
-        # 理想情况下，我们应该将其解析回原始结构。
-        # 对于这个概念验证，我们将其存储为字符串，或者如果它是 JSON 则尝试解析。
         try:
-            tailored_resume["skills"] = json.loads(new_skills_resp.content)
+            current_tailored["skills"] = json.loads(new_skills_resp.content)
         except:
-            tailored_resume["skills"] = new_skills_resp.content.split("\n")
+            current_tailored["skills"] = new_skills_resp.content.split("\n")
 
-    return {"tailored_resume_data": tailored_resume}
+    return {"tailored_resume_data": current_tailored}
 
-def format_resume(state: ResumeTailorState) -> dict:
-    """最终输出生成（可选）。"""
-    # 在完整的应用程序中，这可能会生成 PDF 或 Markdown 字符串。
-    # 目前，我们依赖结构化数据作为结果。
-    return {}
+def reorder_sections(state: ResumeTailorState) -> dict:
+    """重新排序章节并插入关键成就 (Phase 2)。"""
+    print("--- Finalizing Structure ---")
+    current_tailored = state.get("tailored_resume_data") or state["resume_data"].copy()
+    section_order = state.get("section_order", [])
+    key_achievements = state.get("key_achievements", [])
+    target_title = state.get("target_title", "")
+
+    # 1. 注入目标职位标题
+    current_tailored["headline_target_title"] = target_title
+
+    # 2. 注入关键成就 (Selected Highlights)
+    if key_achievements:
+        current_tailored["key_achievements"] = key_achievements
+
+    # 3. 重新排序顶级键
+    # 我们创建一个新的有序字典
+    final_ordered_resume = {}
+
+    # 总是把 headline 放在最前面
+    if "headline_target_title" in current_tailored:
+        final_ordered_resume["headline_target_title"] = current_tailored["headline_target_title"]
+
+    # 总是把 key_achievements 放在 summary 之后或顶部附近
+    # 如果 order 列表里没有 key_achievements，我们手动插入
+
+    for section in section_order:
+        if section in current_tailored:
+            final_ordered_resume[section] = current_tailored[section]
+
+            # 在 summary 之后插入 achievements
+            if section == "summary" and "key_achievements" in current_tailored:
+                 final_ordered_resume["key_achievements"] = current_tailored["key_achievements"]
+
+    # 复制任何未在 order 中指定但存在的剩余字段
+    for k, v in current_tailored.items():
+        if k not in final_ordered_resume and k != "key_achievements":
+            final_ordered_resume[k] = v
+
+    return {"tailored_resume_data": final_ordered_resume}
