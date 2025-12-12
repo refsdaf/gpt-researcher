@@ -21,7 +21,7 @@ from typing import Annotated, Any, Sequence
 from langchain_core.messages import AIMessage
 from langchain_core.runnables import RunnableConfig
 from langgraph.graph import END, MessagesState, StateGraph
-from langgraph.types import Send, StreamWriter
+from langgraph.types import Send, StreamWriter, RetryPolicy
 
 # External dependencies (assumed to be available in the environment)
 try:
@@ -33,7 +33,21 @@ except ImportError:
     if "app.agent.core.llm" not in sys.modules:
         raise
 
+try:
+    from interview_prompts import InterviewPrompts
+except ImportError:
+    # Fallback or local testing
+    pass
+
 logger = logging.getLogger(__name__)
+
+# 定义重试策略
+network_retry_policy = RetryPolicy(
+    max_attempts=3,
+    initial_interval=1.0,
+    backoff_factor=2.0,
+    retry_on=Exception  # 可以细化为特定的网络异常
+)
 
 
 # ============================================================
@@ -207,12 +221,7 @@ async def search_business_info(
     writer({"node": "search_business_info", "status": "searching"})
 
     llm = get_qwen_search_model()
-    prompt = f"""请搜索 {company_name} 公司的工商信息：
-1. 公司成立时间、注册资本
-2. 法律诉讼（尤其是劳动纠纷）
-3. 经营状态风险
-
-如果是小公司找不到信息，请如实说明。控制在150字以内。"""
+    prompt = InterviewPrompts.get_business_info_search_prompt(company_name)
 
     try:
         response = await llm.ainvoke(prompt, config=config)
@@ -235,12 +244,7 @@ async def search_role_risk(
     writer({"node": "search_role_risk", "status": "searching"})
 
     llm = get_qwen_search_model()
-    prompt = f"""请搜索 {company_name} {role_name} 岗位的避雷信息：
-1. 员工对该岗位/部门的评价
-2. 加班情况、工作强度
-3. 是否有卡转正、末位淘汰等风险
-
-如果找不到相关信息，请给出该岗位通用的注意事项。控制在150字以内。"""
+    prompt = InterviewPrompts.get_role_risk_search_prompt(company_name, role_name)
 
     try:
         response = await llm.ainvoke(prompt, config=config)
@@ -266,12 +270,7 @@ async def search_company_product(
     writer({"node": "search_company_product", "status": "searching"})
 
     llm = get_qwen_search_model()
-    prompt = f"""请搜索 {company_name} 公司的产品信息：
-1. 主营业务和核心产品
-2. {role_name} 岗位可能负责的产品线
-3. 近期业务动态
-
-控制在200字以内。"""
+    prompt = InterviewPrompts.get_company_product_search_prompt(company_name, role_name)
 
     try:
         response = await llm.ainvoke(prompt, config=config)
@@ -315,10 +314,7 @@ async def fallback_industry_interview(
     except BaiduSearchError as e:
         logger.warning(f"行业面试经验搜索失败: {e}")
         llm = get_qwen_search_model()
-        prompt = f"""请搜索 {role_name} 岗位的面试经验：
-1. 常见面试流程
-2. 5个高频面试题
-3. 面试注意事项"""
+        prompt = InterviewPrompts.get_fallback_interview_prompt(role_name)
         try:
             response = await llm.ainvoke(prompt, config=config)
             content = (
@@ -351,11 +347,7 @@ async def fallback_industry_salary(
         logger.warning(f"行业薪资搜索失败: {e}")
 
     llm = get_qwen_search_model()
-    prompt = f"""请搜索 {role_name} 岗位的薪资水平：
-1. 不同城市的薪资范围
-2. 不同工作年限对应的薪资
-3. 谈薪建议
-控制在150字以内。"""
+    prompt = InterviewPrompts.get_fallback_salary_prompt(role_name)
     try:
         response = await llm.ainvoke(prompt, config=config)
         content = response.content if hasattr(response, "content") else str(response)
@@ -386,43 +378,12 @@ async def analyze_resume(
 
     llm = get_deepseek_model()
 
-    interview_section = ""
-    if interview_exp:
-        interview_section = f"""
-已知该岗位的面试经验：
-{interview_exp[:1500]}
-"""
-
-    jd_section = ""
-    if jd_text:
-        jd_section = f"""
-职位描述（JD）：
-{jd_text}
-"""
-
-    prompt = f"""你是一位资深面试官。请结合面试经验和职位要求，分析这份简历。
-
-目标职位：{role_name}
-{jd_section}
-{interview_section}
-简历内容：
-{resume_text}
-
-请输出以下内容（简洁的要点形式）：
-
-## 1. 匹配度评估
-- 整体匹配度（高/中/低）
-- 主要匹配点和缺口
-
-## 2. 针对你简历的预测问题
-根据面试经验中的高频问题，结合你的简历经历，预测面试官最可能问你的 5 个问题：
-（例如：你简历提到了 XX 项目，面试官可能会问 XX）
-
-## 3. 弱点应对
-识别简历中的潜在问题（空窗期、跳槽频繁等），给出应对话术
-
-## 4. 自我介绍建议
-给出 30 秒自我介绍模板，强调与岗位匹配的关键点"""
+    prompt = InterviewPrompts.get_resume_analysis_prompt(
+        role_name=role_name,
+        jd_text=jd_text,
+        interview_exp=interview_exp,
+        resume_text=resume_text
+    )
 
     try:
         response = await llm.ainvoke(prompt, config=config)
@@ -570,16 +531,16 @@ graph = StateGraph(InterviewResearchState)
 # 初始化节点
 graph.add_node("init", init_workflow)
 
-# 第一阶段：探测节点
-graph.add_node("probe_company_interview", probe_company_interview)
-graph.add_node("probe_company_salary", probe_company_salary)
-graph.add_node("search_business_info", search_business_info)
-graph.add_node("search_role_risk", search_role_risk)
-graph.add_node("search_company_product", search_company_product)
+# 第一阶段：探测节点 (添加重试策略)
+graph.add_node("probe_company_interview", probe_company_interview, retry=network_retry_policy)
+graph.add_node("probe_company_salary", probe_company_salary, retry=network_retry_policy)
+graph.add_node("search_business_info", search_business_info, retry=network_retry_policy)
+graph.add_node("search_role_risk", search_role_risk, retry=network_retry_policy)
+graph.add_node("search_company_product", search_company_product, retry=network_retry_policy)
 
 # 第二阶段：兜底节点
-graph.add_node("fallback_industry_interview", fallback_industry_interview)
-graph.add_node("fallback_industry_salary", fallback_industry_salary)
+graph.add_node("fallback_industry_interview", fallback_industry_interview, retry=network_retry_policy)
+graph.add_node("fallback_industry_salary", fallback_industry_salary, retry=network_retry_policy)
 
 # 标记节点 (用于统一分支结束状态)
 graph.add_node("mark_salary_done", mark_salary_done)
