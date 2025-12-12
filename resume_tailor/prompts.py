@@ -13,8 +13,9 @@ Analyze the JD and extract the following:
 2. **Pain Points**: What specific problems is the company trying to solve? Read between the lines.
 3. **Culture**: Based on the tone, is it Corporate/Formal or Startup/Modern?
 4. **Key Responsibilities**: The top 3-5 most important duties.
+5. **Brand Vibe**: Any clues about visual style (e.g., "Classic", "Bold", "Minimalist")?
 
-Return the output as a JSON object with keys: "hard_skills", "soft_skills", "pain_points", "culture", "key_responsibilities".
+Return the output as a JSON object with keys: "hard_skills", "soft_skills", "pain_points", "culture", "key_responsibilities", "brand_vibe".
 """
 
 STRATEGIC_ASSESSMENT_PROMPT = """You are a Strategic Resume Consultant.
@@ -36,6 +37,39 @@ Return a JSON object with keys:
 - "target_title": string
 - "section_order": list of strings
 - "key_achievements": list of strings
+"""
+
+GAP_AND_LINK_ANALYSIS_PROMPT = """You are a Resume Auditor focusing on "Invisible Tailoring".
+
+**Inputs:**
+- Candidate Experience: {experience}
+- Candidate Links: {links}
+- JD Keywords: {keywords}
+
+**Tasks:**
+1. **Gap Analysis**: Identify employment gaps > 6 months. For each gap, create a "Career Break" entry describing relevant upskilling (e.g., "Took intensive Python course", "Freelance Consulting").
+2. **Link Selection**: Choose ONLY links relevant to the JD (e.g., GitHub for coders, Portfolio for designers). Ignore generic social media unless professional.
+
+Return a JSON object with keys:
+- "gaps_filled": List of objects [{{"role": "Career Break: Upskilling", "company": "Self-Directed", "dates": "...", "bullets": ["..."]}}]
+- "selected_links": List of strings (URLs)
+"""
+
+FORMATTING_ADVICE_PROMPT = """You are a Design Consultant for resumes.
+
+**Inputs:**
+- Candidate Name: {name}
+- Target Role: {role}
+- Target Company: {company}
+- Company Culture/Brand: {culture}
+
+**Tasks:**
+1. **File Name**: Generate the optimal filename (e.g., `John_Doe_Product_Manager_Google.pdf`).
+2. **Visual Style**: Suggest fonts (Serif vs Sans), accent colors (matching company brand subtly), and layout vibe (Clean vs Dense) based on the company culture.
+
+Return a JSON object with keys:
+- "file_name": string
+- "formatting_advice": {{"font": string, "accent_color": string, "layout_note": string}}
 """
 
 TAILOR_SUMMARY_PROMPT = """You are a professional resume writer. Rewrite the Professional Summary and Header.
@@ -93,4 +127,28 @@ TAILOR_SKILLS_PROMPT = """You are optimizing the "Skills" section for an ATS.
 3. Prioritize skills mentioned in the JD.
 
 Return the result as a list of strings or a dictionary of categories.
+"""
+
+QUALITY_REVIEW_PROMPT = """You are a Hiring Manager at the target company.
+Review the following tailored resume against the Job Description.
+
+**Job Description Highlights:**
+- Keywords: {keywords}
+- Pain Points: {pain_points}
+
+**Tailored Resume Content:**
+- Headline: {headline}
+- Summary: {summary}
+- Top Experience Bullets: {top_bullets}
+
+**Tasks:**
+1. **The 6-Second Test**: Can you identify the specific job title and top qualification within 6 seconds? (Pass/Fail + Comment)
+2. **The "So What?" Test**: Do the bullets answer a problem in the JD? (Pass/Fail + Comment)
+3. **ATS Scan**: Are there keywords present? (List missing critical keywords).
+
+Return a JSON object with keys:
+- "six_second_test": {{"result": "Pass/Fail", "comment": "..."}}
+- "so_what_test": {{"result": "Pass/Fail", "comment": "..."}}
+- "missing_keywords": ["...", "..."]
+- "final_verdict": "Ready to Submit" or "Needs Revision"
 """

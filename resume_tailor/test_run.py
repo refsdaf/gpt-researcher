@@ -4,6 +4,7 @@ from resume_tailor.graph import create_resume_tailor_graph
 
 # 模拟数据
 MOCK_RESUME = {
+    "name": "John Doe",
     "summary": "Software Engineer with 5 years experience in web dev.",
     "experience": [
         {
@@ -25,7 +26,8 @@ MOCK_RESUME = {
             ]
         }
     ],
-    "skills": ["React", "Python", "SQL", "Git"]
+    "skills": ["React", "Python", "SQL", "Git"],
+    "links": ["github.com/jdoe", "twitter.com/jdoe"]
 }
 
 MOCK_JD = """
@@ -57,8 +59,13 @@ def run_test():
         result = graph.invoke(inputs)
         print("\n\nResulting Tailored Resume:")
         print(json.dumps(result["tailored_resume_data"], indent=2))
-        print("\nAnalysis:")
-        print(json.dumps(result["analysis"], indent=2))
+
+        print("\nAdvanced Analysis:")
+        print(f"File Name: {result['file_name']}")
+        print(f"Formatting Advice: {result['formatting_advice']}")
+        print(f"Gap Analysis: {result['gap_analysis']}")
+        print(f"Quality Report: {result['quality_report']}")
+
     except Exception as e:
         print(f"Error running graph: {e}")
 

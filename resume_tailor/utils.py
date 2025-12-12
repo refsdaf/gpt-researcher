@@ -16,7 +16,8 @@ class MockChatModel(RunnableSerializable):
                 "soft_skills": ["Scrappy", "Entrepreneurial"],
                 "pain_points": "Legacy code is slow, need refactoring while shipping.",
                 "culture": "Startup/Modern, fast-paced.",
-                "key_responsibilities": "Architect backend, Lead frontend, Mentor juniors."
+                "key_responsibilities": "Architect backend, Lead frontend, Mentor juniors.",
+                "brand_vibe": "Bold and Minimalist"
             }),
             "Strategic Resume Consultant": json.dumps({
                 "target_title": "Senior Full Stack Engineer",
@@ -27,13 +28,38 @@ class MockChatModel(RunnableSerializable):
                     "Mentored 3 junior devs to promotion."
                 ]
             }),
+            "Resume Auditor": json.dumps({
+                "gaps_filled": [
+                     {
+                         "role": "Career Break: Technical Upskilling",
+                         "company": "Self-Directed Learning",
+                         "dates": "2023-01 - 2023-06",
+                         "bullets": ["Completed Advanced Python Certification.", "Built full-stack portfolio project."]
+                     }
+                ],
+                "selected_links": ["github.com/jdoe"]
+            }),
+            "Design Consultant": json.dumps({
+                "file_name": "John_Doe_Senior_Full_Stack_Engineer_StartupInc.pdf",
+                "formatting_advice": {
+                    "font": "Sans-Serif (e.g., Roboto or Open Sans) for modern vibe.",
+                    "accent_color": "#0056b3 (Deep Blue)",
+                    "layout_note": "Clean, ample white space."
+                }
+            }),
             "Rewrite the Professional Summary": "Senior Full Stack Engineer (Python/React) with 5 years experience. Expert in Python and React. Proven track record of architecting scalable systems and refactoring legacy code in fast-paced startup environments.",
             "tailor a specific job entry": json.dumps([
                 "**Orchestrated cross-functional collaboration** to build a react app, matching startup speed.",
                 "Optimized database queries, solving complex performance bottlenecks.",
                 "Managed a team of 3, mentoring junior engineers."
             ]),
-            "optimizing the \"Skills\" section": json.dumps(["Python", "React", "PostgreSQL", "AWS", "CI/CD", "Git", "SQL"])
+            "optimizing the \"Skills\" section": json.dumps(["Python", "React", "PostgreSQL", "AWS", "CI/CD", "Git", "SQL"]),
+            "Hiring Manager": json.dumps({
+                "six_second_test": {"result": "Pass", "comment": "Headline and top achievements are immediately visible."},
+                "so_what_test": {"result": "Pass", "comment": "Bullets clearly address the pain point of legacy code."},
+                "missing_keywords": [],
+                "final_verdict": "Ready to Submit"
+            })
         }
 
     def invoke(self, input: Any, config: Optional[Any] = None) -> AIMessage:
@@ -63,5 +89,5 @@ def get_search_tool():
     else:
         # 用于没有 API 密钥的测试的模拟工具
         def mock_search(query: str):
-            return "Mock search results: Company values are Innovation and Speed."
+            return "Mock search results: Company values are Innovation and Speed. Interview questions focus on System Design."
         return Tool(name="search", func=mock_search, description="Search the web.")
