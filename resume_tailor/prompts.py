@@ -1,4 +1,4 @@
-# Prompts for the Resume Tailor Agent
+# 简历定制代理的提示词
 
 ANALYZE_JD_PROMPT = """You are an expert Career Coach and Resume Strategist.
 Your task is to deconstruct the following Job Description (JD) using the "Mirror Method".

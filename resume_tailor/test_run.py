@@ -2,7 +2,7 @@ import os
 import json
 from resume_tailor.graph import create_resume_tailor_graph
 
-# Mock Data
+# 模拟数据
 MOCK_RESUME = {
     "summary": "Software Engineer with 5 years experience in web dev.",
     "experience": [

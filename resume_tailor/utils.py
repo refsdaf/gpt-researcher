@@ -1,7 +1,6 @@
 import os
 import json
 from langchain_openai import ChatOpenAI
-from langchain_core.language_models import FakeListLLM
 from langchain_core.messages import AIMessage, BaseMessage
 from langchain_core.runnables import RunnableSerializable, Runnable
 from langchain_core.tools import Tool
@@ -9,7 +8,7 @@ from langchain_community.tools.tavily_search import TavilySearchResults
 from typing import Any, List, Optional
 
 class MockChatModel(RunnableSerializable):
-    """A mock chat model that returns context-aware responses."""
+    """一个模拟的聊天模型，返回上下文感知的响应。"""
 
     responses: dict = {
             "Analyze the JD": json.dumps({
@@ -29,7 +28,7 @@ class MockChatModel(RunnableSerializable):
         }
 
     def invoke(self, input: Any, config: Optional[Any] = None) -> AIMessage:
-        # Determine which prompt is being used by checking the input text
+        # 通过检查输入文本来确定正在使用哪个提示词
         text = str(input)
 
         response_content = "Mock response"
@@ -41,7 +40,7 @@ class MockChatModel(RunnableSerializable):
         return AIMessage(content=response_content)
 
 def get_llm():
-    """Returns a configured LLM instance or a Mock if no key."""
+    """返回配置好的 LLM 实例，如果没有密钥则返回 Mock。"""
     if os.environ.get("OPENAI_API_KEY"):
         return ChatOpenAI(model="gpt-4o", temperature=0)
     else:
@@ -49,11 +48,11 @@ def get_llm():
         return MockChatModel()
 
 def get_search_tool():
-    """Returns a search tool if available, else a mock."""
+    """如果可用则返回搜索工具，否则返回 Mock。"""
     if os.environ.get("TAVILY_API_KEY"):
         return TavilySearchResults()
     else:
-        # Mock tool for testing without API key
+        # 用于没有 API 密钥的测试的模拟工具
         def mock_search(query: str):
             return "Mock search results: Company values are Innovation and Speed."
         return Tool(name="search", func=mock_search, description="Search the web.")
