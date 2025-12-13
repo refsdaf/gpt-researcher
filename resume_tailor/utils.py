@@ -6,6 +6,7 @@ from langchain_core.runnables import RunnableSerializable, Runnable
 from langchain_core.tools import Tool
 from langchain_community.tools.tavily_search import TavilySearchResults
 from typing import Any, List, Optional
+from .config import Config
 
 class MockChatModel(RunnableSerializable):
     """一个模拟的聊天模型，返回上下文感知的响应。"""
@@ -80,10 +81,14 @@ class MockChatModel(RunnableSerializable):
 
         return AIMessage(content=response_content)
 
-def get_llm():
+def get_llm(config: Config = None):
     """返回配置好的 LLM 实例，如果没有密钥则返回 Mock。"""
-    if os.environ.get("OPENAI_API_KEY"):
-        return ChatOpenAI(model="gpt-4o", temperature=0)
+    # 优先使用 config 对象，如果未提供则使用默认环境变量检查
+    api_key = config.openai_api_key if config else os.environ.get("OPENAI_API_KEY")
+
+    if api_key:
+        model = config.model if config else "gpt-4o"
+        return ChatOpenAI(model=model, temperature=0, api_key=api_key)
     else:
         print("NOTICE: OPENAI_API_KEY not found. Using Mock LLM.")
         return MockChatModel()
